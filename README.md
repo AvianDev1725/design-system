@@ -114,7 +114,10 @@ src/
 vite.config.ts          library build (npm run build) + two vitest projects:
                          'unit' (jsdom) and 'storybook' (real Chromium via Playwright)
 eslint.config.js         template lint config for the other 9 repos
-Jenkinsfile              lint -> test -> a11y (Playwright) -> Sonar gate -> build -> deploy
+Jenkinsfile              validation only: lint -> test -> a11y (Playwright) -> Sonar gate -> build
+.github/workflows/
+  deploy.yml              deployment + npm publish (see "Deploying" below) — deliberately
+                           separate from the Jenkinsfile, not duplicated into it
 vercel.json              Storybook static deploy config
 sonar-project.properties
 .changeset/               versioning — see "Versioning" below
@@ -166,9 +169,11 @@ npm run changeset          # describe your change, pick a bump type
 git add .changeset/*.md    # commit it with your PR
 ```
 
-On merge to `main`, CI (`Jenkinsfile`) runs `changeset publish`, which
-consumes pending changesets into a version bump + `CHANGELOG.md` entry
-and pushes to npm.
+On push to `main`, `.github/workflows/deploy.yml`'s `deploy-production`
+job runs `changeset publish` (after the `production` Environment
+approval — see "Deploying Storybook to Vercel"), which consumes
+pending changesets into a version bump + `CHANGELOG.md` entry and
+pushes to npm.
 
 **Current phase: `0.x`.** Under semver's `0.x` convention, breaking
 changes bump the _minor_ version, not major (`0.1.0` → `0.2.0` for a
@@ -181,31 +186,47 @@ deployed project," not a fixed date.
 
 ## Deploying Storybook to Vercel
 
-One-time setup (not repeatable from a script — needs your Vercel
-login):
+Owned by [.github/workflows/deploy.yml](./.github/workflows/deploy.yml)
+now, triggered on push to `develop` / `staging` / `main` — **not** the
+Jenkinsfile, deliberately (see that file's header comment). Branch →
+environment: `develop` → dev preview, `staging` → preprod preview,
+`main` → production.
 
-```bash
-npx vercel login
-npx vercel link          # connects this repo to a Vercel project
-```
+**`main` is gated by a GitHub Environment, not the site itself.** The
+`deploy-production` job requires approval from the `production`
+Environment's reviewers before it runs at all — once approved, the
+deployed Storybook is fully public, same as dev/staging. What's
+access-controlled is _who can trigger a production deploy_, not _who
+can view the result_. One-time setup, can't be scripted (needs repo
+admin access):
 
-After that, two scripts — `develop` builds+deploys a **preview**
-(Vercel's non-production deploy target; use this for the `develop` and
-`staging` branches), `prod` promotes to the **production** URL (the
-`main` branch, after the Jenkins approval gate):
+1. **Settings → Environments → New environment**, name it exactly
+   `production` → **Required reviewers** → add yourself (or whoever
+   should approve prod deploys).
+2. **Settings → Secrets and variables → Actions → New repository
+   secret**: `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`
+   (`VERCEL_ORG_ID`/`VERCEL_PROJECT_ID` come from `.vercel/project.json`
+   after running `npx vercel link` locally, or the Vercel project's
+   Settings page).
+3. Same page, but scoped to the **`production` Environment's own
+   secrets** (Settings → Environments → production → Environment
+   secrets), not repo-level: `NPM_TOKEN`. This one only needs to exist
+   inside an already-approved run — worth the extra isolation since a
+   leaked npm token can publish under your account.
 
-```bash
-npm run deploy:storybook:dev   # preview deploy
-npm run deploy:storybook:prod  # production deploy
-```
+Vercel stays **one project** across all three environments (not three
+separate projects) — dev/staging land as Preview deployments
+(distinguished by branch, carried via a `DEPLOY_ENV` build-time env
+var, not a distinct Vercel project), `main` lands as the Production
+deployment. If you want dev and staging to have genuinely separate,
+independently-configurable settings on Vercel's side (not just
+different branches sharing one config), that needs [Vercel Custom
+Environments](https://vercel.com/docs/deployments/environments#custom-environments) —
+a Pro-plan feature, not set up here.
 
-Both need `VERCEL_TOKEN` in the environment (a personal token from
-Vercel's account settings — `npx vercel login` won't set this for you,
-it's separate from the CLI session token). The Jenkins pipeline runs
-the equivalent `vercel deploy` commands itself, branch-gated — these
-npm scripts are for a manual/local deploy without going through
-Jenkins. See the Jenkinsfile's header comment for why branch→env
-mapping is CLI-driven from CI rather than Vercel's own git integration.
+For a manual/local deploy without pushing through GitHub Actions at
+all: `npm run deploy:storybook:dev` / `npm run deploy:storybook:prod`
+still work, using a `VERCEL_TOKEN` in your own shell environment.
 
 ## Seeing the Jenkinsfile actually run
 
@@ -213,12 +234,12 @@ mapping is CLI-driven from CI rather than Vercel's own git integration.
 
 - Groovy init scripts, no manual setup wizard) — see
   [local-jenkins/README.md](./local-jenkins/README.md) for how to run
-  it. It's not aspirational: `Install` → `Lint` → `Test` → `Test:
-Accessibility (Playwright)` were confirmed running and passing against
-  it, with zero extra setup. `SonarQube Quality Gate` onward correctly
-  stops there until real Sonar/Vercel/npm credentials are added — that
-  image doc also lists exactly what those are. It's reusable for the
-  other 9 repos too (parameterized via env vars), not single-purpose.
+  it. It validates only now (deploy/publish moved to GitHub Actions,
+  above) — not aspirational, though: `Install` → `Lint` → `Test` →
+  `Test: Accessibility (Playwright)` → `SonarQube Quality Gate` → `Build`
+  were all confirmed running and passing against a real SonarCloud
+  project. It's reusable for the other 9 repos too (parameterized via
+  env vars), not single-purpose.
 
 Two real Jenkinsfile bugs got caught and fixed this way, not just
 theorized: a pipeline-global `environment {}` block was resolving all
@@ -266,13 +287,27 @@ get copy-pasted into the other 9 repos:
   in that tree ships to npm (`files: ["dist"]`). Worth an occasional
   `npm audit` re-check, not a blocker.
 
-## Decisions still open — needed before project 2
+## Decisions resolved since scaffolding
 
-- **GitHub org/username.** `package.json` (`repository`, `homepage`,
-  `bugs`) and `.storybook/theme.ts` (`brandUrl`) currently point at
-  placeholder `github.com/avian-dev` URLs. Find-and-replace once you
-  know the real org/username — same placeholder will show up in the
-  other 9 repos' `package.json`s, so worth deciding once, here.
+- **GitHub org**: `AvianDev1725` — `package.json`, `.storybook/theme.ts`,
+  the Jenkins seed job, and this README's links all use the real org
+  now, no more `github.com/avian-dev` placeholders. The **npm scope**
+  (`@avian-dev/design-system`) stays as-is — it's an independent
+  namespace from the GitHub org, doesn't need to match.
+- **SonarCloud** is real and wired: org `aviandev1725`, project
+  `AvianDev1725_design-system`, Automatic Analysis disabled in favor of
+  Jenkins-driven CI analysis (had to be turned off manually in
+  SonarCloud's UI — Administration → Analysis Method — the two modes
+  actively conflict).
+- **Vercel** is real and wired: one project (`avian-dev/design-system`),
+  deploys owned by `.github/workflows/deploy.yml` — see "Deploying
+  Storybook to Vercel" above for the exact GitHub Environment +
+  secrets setup.
+- **npm publish** goes through the same GitHub Actions workflow,
+  `NPM_TOKEN` scoped to the `production` Environment specifically.
+
+## Decisions still open
+
 - **License.** Defaulted to MIT (standard for a public portfolio repo,
   permissive for anyone consuming your components as a reference). Say
   so if you want something else.
@@ -281,20 +316,11 @@ get copy-pasted into the other 9 repos:
   `.storybook/public/`, `src/tokens/color.ts`'s placeholder blue ramp)
   but using placeholder values — see the `TODO(brand)` comments in
   those files for exactly what to swap and where.
-- **Jenkins credential IDs & Vercel/Sonar project linking.** The
-  `Jenkinsfile` references credential IDs
-  (`avian-dev-npm-token`, `avian-dev-sonar-token`,
-  `avian-dev-vercel-token`, etc.) and `sonar-project.properties`
-  references a `sonar.organization` — these need to exist in your
-  actual Jenkins/SonarQube/Vercel accounts before the pipeline can run
-  end to end. Scaffolded so the shape is right; not wired to real
-  infrastructure yet.
-- **Vercel's branch→environment mapping is CLI-driven from Jenkins**,
-  not Vercel's own git integration (see the Jenkinsfile's comment). If
-  you'd rather let Vercel auto-deploy previews from its GitHub
-  integration and use Jenkins only for the npm publish + prod gate,
-  that's a simpler alternative worth considering — it just splits the
-  pipeline across two systems instead of one.
+- **Vercel Custom Environments** (a Pro-plan feature) would let
+  dev/staging have genuinely separate, independently-configurable
+  Vercel settings instead of sharing one project distinguished only by
+  branch — not set up here (see "Deploying Storybook to Vercel"),
+  worth it if dev/staging need to diverge beyond a build-time env var.
 - **A component that intentionally fails a11y** (`IconOnlyMissingLabel`
   in `Button.stories.tsx`) is kept as a permanent story to give the a11y
   addon panel something real to demonstrate. Decide if that convention

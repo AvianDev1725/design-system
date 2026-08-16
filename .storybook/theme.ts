@@ -24,7 +24,7 @@ export const avianDevTheme = create({
   base: 'light',
 
   brandTitle: 'Avian Dev — Design System',
-  brandUrl: 'https://github.com/avian-dev', // TODO: real org URL
+  brandUrl: 'https://github.com/AvianDev1725',
   brandImage: undefined, // TODO: './logo.svg' once it exists
   brandTarget: '_self',
 

@@ -30,10 +30,16 @@ own machine, not fine for anything reachable by anyone else.
 - **Plugins**: git, workflow-aggregator (Pipeline), nodejs,
   credentials-binding, pipeline-stage-view, timestamper, sonar,
   ws-cleanup — exactly what this repo's `Jenkinsfile` needs to _parse_
-  (not necessarily to fully succeed — SonarQube/Vercel/npm still need
-  real credentials, see below).
+  (not necessarily to fully succeed — SonarQube still needs a real
+  credential, see below).
 
 ## What it can't do without more setup
+
+Jenkins only validates now (lint, test, a11y, SonarQube, build) —
+deployment and npm publish moved to
+[.github/workflows/deploy.yml](../.github/workflows/deploy.yml), so
+this image has nothing to do with Vercel or npm credentials at all
+anymore.
 
 `Install` → `Lint` → `Test` → `Test: Accessibility (Playwright)` all
 run and pass with **zero** additional configuration — none of those
@@ -43,22 +49,16 @@ The SonarQube **server** (name `avian-dev-sonarqube`, pointed at
 `https://sonarcloud.io`) is pre-configured (`040-sonarqube-server.groovy` —
 set `SONARQUBE_URL` to point at a different server, e.g. a local
 SonarQube instead of SonarCloud). What's still missing on a fresh
-container is the **credentials** themselves — nothing here can
-generate these for you, they come from your own accounts:
+container is the **credential** itself — nothing here can generate it
+for you:
 
 - `avian-dev-sonar-token` — SonarCloud → My Account → Security →
   Generate Token
-- `avian-dev-npm-token` — npmjs.com → Profile → Access Tokens →
-  Generate New Token (type: **Automation**)
-- `avian-dev-vercel-token` — vercel.com → Account Settings → Tokens
-- `avian-dev-vercel-org-id` / `avian-dev-vercel-project-id` — from
-  `.vercel/project.json` after running `vercel link` in the repo root,
-  or Vercel's project Settings page
 
-Add each as **Manage Jenkins → Credentials → System → Global
-credentials → Add Credentials → Secret text**, using the exact ID
-above (must match — that's what the Jenkinsfile's `credentials(...)`
-calls and `040-sonarqube-server.groovy`'s `credentialsId` look up).
+Add it as **Manage Jenkins → Credentials → System → Global
+credentials → Add Credentials → Secret text**, using that exact ID
+(must match — that's what the Jenkinsfile's `credentials(...)` call
+and `040-sonarqube-server.groovy`'s `credentialsId` look up).
 
 ## Running it
 

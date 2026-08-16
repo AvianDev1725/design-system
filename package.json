@@ -17,10 +17,10 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/avian-dev/design-system.git"
+    "url": "git+https://github.com/AvianDev1725/design-system.git"
   },
-  "homepage": "https://github.com/avian-dev/design-system#readme",
-  "bugs": "https://github.com/avian-dev/design-system/issues",
+  "homepage": "https://github.com/AvianDev1725/design-system#readme",
+  "bugs": "https://github.com/AvianDev1725/design-system/issues",
   "engines": {
     "node": ">=20"
   },

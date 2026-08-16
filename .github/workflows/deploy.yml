@@ -1,0 +1,113 @@
+name: Deploy
+
+# Branch -> environment mapping: develop -> dev preview, staging ->
+# preprod preview, main -> production (gated, see deploy-production).
+# This workflow owns deployment + npm publish; lint/test/SonarQube stay
+# in Jenkins (see ../../Jenkinsfile) rather than duplicating the Sonar
+# scan across two systems — SonarCloud only wants one source of
+# analysis per project (we hit that conflict directly when first
+# wiring Jenkins up; see sonar-project.properties / README).
+on:
+  push:
+    branches: [develop, staging, main]
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Fast safety net, not a replacement for Jenkins' full validation —
+  # this only exists so a push straight to a deploy branch (bypassing
+  # Jenkins entirely) can't reach Vercel/npm unverified. Deliberately
+  # excludes the SonarQube stage for the reason above.
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run typecheck
+      - run: npm test
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:storybook
+
+  # develop / staging: no approval gate, matches the Jenkinsfile's old
+  # behavior for these two branches — only `main` needs a human in the
+  # loop. Deployed as Vercel Preview deployments (both branches); which
+  # one is which is carried via DEPLOY_ENV as a build-time env var, not
+  # a distinct Vercel project — see README "Deploying Storybook to
+  # Vercel" for the Vercel Custom Environments alternative (Pro-plan
+  # only) if you want dev/staging fully separated on Vercel's side too.
+  deploy-preview:
+    needs: verify
+    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/staging'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run build-storybook
+      - name: Deploy preview to Vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          DEPLOY_ENV=dev
+          if [ "${{ github.ref_name }}" = "staging" ]; then DEPLOY_ENV=preprod; fi
+          npx vercel deploy storybook-static \
+            --token="$VERCEL_TOKEN" \
+            --build-env DEPLOY_ENV="$DEPLOY_ENV" \
+            --yes
+
+  # main: requires the "production" Environment's required reviewers
+  # (Settings -> Environments -> production) to approve before this job
+  # runs at all — the site being deployed stays fully public once live;
+  # what's gated is the act of deploying/publishing it, not viewing it.
+  deploy-production:
+    needs: verify
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+      - run: npm ci
+
+      - name: Deploy to production Vercel
+        id: deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          npm run build-storybook
+          URL=$(npx vercel deploy storybook-static --token="$VERCEL_TOKEN" --prod --yes)
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
+      - name: Publish to npm
+        env:
+          # Scope this one to the `production` Environment's own secret
+          # store (Settings -> Environments -> production -> Environment
+          # secrets), not a repo-level secret — it's the only credential
+          # here that's genuinely dangerous if leaked (publishes under
+          # your npm account), so it's worth the extra protection of
+          # only existing inside an already-approved run.
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          npm run build
+          echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > .npmrc
+          npx changeset publish

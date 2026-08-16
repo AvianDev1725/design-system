@@ -1,19 +1,16 @@
-// Avian Dev shared pipeline shape: lint -> test -> SonarQube quality gate
-// -> build -> deploy. This file is the template the other 9 repos copy;
-// what's specific to *this* repo is the Deploy stage's content — a
-// design system has no runnable app, so "deploy" means two things:
-//   1. Publish the package to npm (main branch only, via Changesets)
-//   2. Publish the Storybook static build to Vercel, as the suite's
-//      living style guide
+// Avian Dev shared pipeline shape: lint -> test -> SonarQube quality
+// gate -> build. This file is the template the other 9 repos copy.
 //
-// Branch -> environment mapping (develop -> dev, staging -> preprod,
-// main -> prod) is driven from here via the Vercel CLI + token, not
-// Vercel's own git integration — that's a deliberate choice: it keeps
-// the prod approval gate in Jenkins (see the `input` step below) rather
-// than split across two systems. If you'd rather let Vercel's git
-// integration own preview deploys and only use Jenkins for the prod
-// gate, that's a reasonable alternative — see the README's flagged
-// decisions.
+// Ownership split with .github/workflows/deploy.yml: this Jenkinsfile
+// validates (lint/test/a11y/SonarQube/build) on every push; GitHub
+// Actions owns deployment (Vercel dev/staging/prod) and npm publish.
+// That split is deliberate, not incidental — SonarCloud only wants one
+// source of analysis per project (we hit that exact conflict wiring
+// this up: "You are running manual analysis while Automatic Analysis
+// is enabled"), so Sonar stays exclusively here rather than duplicated
+// into the deploy workflow too. If you're adapting this template for a
+// repo that doesn't use GitHub Actions for deploy, the removed
+// Deploy/Approval/Publish stages are in this file's git history.
 pipeline {
   agent any
 
@@ -30,12 +27,9 @@ pipeline {
   // Deliberately NOT a pipeline-global `environment {}` block: Declarative
   // Pipeline resolves `credentials(...)` bindings before `agent` even
   // allocates a node, so if this were global, a single missing Jenkins
-  // credential (e.g. Vercel not wired up yet) would fail the build
-  // before Install/Lint/Test ever ran — confirmed by hitting exactly
-  // that while first standing this pipeline up. Each credential is
-  // scoped to only the stage that actually needs it instead, so
-  // Install/Lint/Test/Build all run on a repo with zero Jenkins
-  // credentials configured; only Publish/Deploy require them.
+  // credential would fail the build before Install/Lint/Test ever ran —
+  // confirmed by hitting exactly that while first standing this pipeline
+  // up. Each credential is scoped to only the stage that needs it.
   stages {
     stage('Install') {
       steps {
@@ -98,7 +92,7 @@ pipeline {
     stage('Wait for Quality Gate') {
       steps {
         // Fails the build if SonarQube's gate fails — don't let a red
-        // gate get built/deployed anyway.
+        // gate get built anyway.
         timeout(time: 10, unit: 'MINUTES') {
           waitForQualityGate abortPipeline: true
         }
@@ -109,68 +103,6 @@ pipeline {
       steps {
         sh 'npm run build'            // package: dist/
         sh 'npm run build-storybook'  // style guide: storybook-static/
-      }
-    }
-
-    stage('Deploy: Storybook (preview envs)') {
-      when {
-        anyOf { branch 'develop'; branch 'staging' }
-      }
-      environment {
-        VERCEL_TOKEN = credentials('avian-dev-vercel-token')
-        VERCEL_ORG_ID = credentials('avian-dev-vercel-org-id')
-        VERCEL_PROJECT_ID = credentials('avian-dev-vercel-project-id')
-      }
-      steps {
-        script {
-          def env = (env.BRANCH_NAME == 'develop') ? 'dev' : 'preprod'
-          sh """
-            npx vercel deploy storybook-static \
-              --token=\$VERCEL_TOKEN \
-              --env=DEPLOY_ENV=${env} \
-              --yes
-          """
-        }
-      }
-    }
-
-    stage('Approval: Production') {
-      when { branch 'main' }
-      steps {
-        // Manual gate before anything reaches prod — required by the
-        // suite-wide pipeline contract, not optional per-repo.
-        input message: 'Deploy @avian-dev/design-system to production?', ok: 'Deploy'
-      }
-    }
-
-    stage('Deploy: Storybook (prod)') {
-      when { branch 'main' }
-      environment {
-        VERCEL_TOKEN = credentials('avian-dev-vercel-token')
-        VERCEL_ORG_ID = credentials('avian-dev-vercel-org-id')
-        VERCEL_PROJECT_ID = credentials('avian-dev-vercel-project-id')
-      }
-      steps {
-        sh '''
-          npx vercel deploy storybook-static \
-            --token=$VERCEL_TOKEN \
-            --prod \
-            --yes
-        '''
-      }
-    }
-
-    stage('Publish: npm') {
-      when { branch 'main' }
-      environment {
-        NPM_TOKEN = credentials('avian-dev-npm-token')
-      }
-      steps {
-        sh 'echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > .npmrc'
-        // No-ops if there's nothing in .changeset/ pending — Changesets
-        // is the version authority; this stage never manually bumps
-        // package.json version itself.
-        sh 'npx changeset publish'
       }
     }
   }
