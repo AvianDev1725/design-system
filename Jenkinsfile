@@ -69,7 +69,18 @@ pipeline {
         // violations the jsdom-based 'Test' stage structurally can't
         // (see README, "Accessibility approach"). Needs actual browser
         // binaries, unlike the stage above.
-        sh 'npx playwright install --with-deps chromium'
+        //
+        // Deliberately NOT `--with-deps`: that flag apt-get installs
+        // Chromium's OS-level shared libraries, which needs root — the
+        // Jenkins agent user doesn't have it, confirmed by hitting a
+        // `sudo`/`su` auth failure here on a real run. Those system
+        // packages belong baked into the CI agent's Docker image once
+        // (`npx playwright install-deps chromium`, run as root at
+        // image-build time — see this repo's local demo Jenkins image
+        // for an example), not reinstalled by every build as a
+        // non-root user. This line only fetches the browser binary
+        // itself, which doesn't need root.
+        sh 'npx playwright install chromium'
         sh 'npm run test:storybook'
       }
     }
