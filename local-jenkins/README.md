@@ -37,19 +37,28 @@ own machine, not fine for anything reachable by anyone else.
 
 `Install` → `Lint` → `Test` → `Test: Accessibility (Playwright)` all
 run and pass with **zero** additional configuration — none of those
-stages touch real infrastructure. `SonarQube Quality Gate` and
-everything after it needs real credentials that don't exist here:
+stages touch real infrastructure.
 
-- Jenkins credentials named `avian-dev-sonar-token`,
-  `avian-dev-vercel-token`, `avian-dev-vercel-org-id`,
-  `avian-dev-vercel-project-id`, `avian-dev-npm-token` (Manage Jenkins
-  → Credentials), and
-- a configured SonarQube server named `avian-dev-sonarqube` (Manage
-  Jenkins → System → SonarQube servers).
+The SonarQube **server** (name `avian-dev-sonarqube`, pointed at
+`https://sonarcloud.io`) is pre-configured (`040-sonarqube-server.groovy` —
+set `SONARQUBE_URL` to point at a different server, e.g. a local
+SonarQube instead of SonarCloud). What's still missing on a fresh
+container is the **credentials** themselves — nothing here can
+generate these for you, they come from your own accounts:
 
-Add those through the UI once you have real accounts to point at —
-this image only gets you to "the pipeline itself is correct," not "the
-whole SDLC is wired to production infra."
+- `avian-dev-sonar-token` — SonarCloud → My Account → Security →
+  Generate Token
+- `avian-dev-npm-token` — npmjs.com → Profile → Access Tokens →
+  Generate New Token (type: **Automation**)
+- `avian-dev-vercel-token` — vercel.com → Account Settings → Tokens
+- `avian-dev-vercel-org-id` / `avian-dev-vercel-project-id` — from
+  `.vercel/project.json` after running `vercel link` in the repo root,
+  or Vercel's project Settings page
+
+Add each as **Manage Jenkins → Credentials → System → Global
+credentials → Add Credentials → Secret text**, using the exact ID
+above (must match — that's what the Jenkinsfile's `credentials(...)`
+calls and `040-sonarqube-server.groovy`'s `credentialsId` look up).
 
 ## Running it
 
