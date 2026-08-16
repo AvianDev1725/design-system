@@ -1,0 +1,8 @@
+git:latest
+workflow-aggregator:latest
+nodejs:latest
+credentials-binding:latest
+pipeline-stage-view:latest
+timestamper:latest
+sonar:latest
+ws-cleanup:latest

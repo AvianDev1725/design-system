@@ -207,6 +207,28 @@ npm scripts are for a manual/local deploy without going through
 Jenkins. See the Jenkinsfile's header comment for why branch→env
 mapping is CLI-driven from CI rather than Vercel's own git integration.
 
+## Seeing the Jenkinsfile actually run
+
+`local-jenkins/` is a fully-scripted, disposable Jenkins (Docker image
+
+- Groovy init scripts, no manual setup wizard) — see
+  [local-jenkins/README.md](./local-jenkins/README.md) for how to run
+  it. It's not aspirational: `Install` → `Lint` → `Test` → `Test:
+Accessibility (Playwright)` were confirmed running and passing against
+  it, with zero extra setup. `SonarQube Quality Gate` onward correctly
+  stops there until real Sonar/Vercel/npm credentials are added — that
+  image doc also lists exactly what those are. It's reusable for the
+  other 9 repos too (parameterized via env vars), not single-purpose.
+
+Two real Jenkinsfile bugs got caught and fixed this way, not just
+theorized: a pipeline-global `environment {}` block was resolving all
+5 credentials before `agent` even allocated a node, so one missing
+credential failed the _entire_ build before Install ever ran (fixed by
+scoping each credential to only the stage that needs it); and
+`playwright install --with-deps` was trying to `apt-get install` as
+root, which the Jenkins agent user doesn't have (fixed — system deps
+belong baked into the CI agent image, not installed per-build).
+
 ## Decisions made (and why) — revisit before scaling to project 2
 
 These were called during scaffolding rather than left as open
