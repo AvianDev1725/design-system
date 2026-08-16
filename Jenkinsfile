@@ -27,14 +27,15 @@ pipeline {
     nodejs 'node22' // matches .nvmrc — configure this tool name in Jenkins Global Tool Configuration
   }
 
-  environment {
-    NPM_TOKEN = credentials('avian-dev-npm-token')
-    SONAR_TOKEN = credentials('avian-dev-sonar-token')
-    VERCEL_TOKEN = credentials('avian-dev-vercel-token')
-    VERCEL_ORG_ID = credentials('avian-dev-vercel-org-id')
-    VERCEL_PROJECT_ID = credentials('avian-dev-vercel-project-id')
-  }
-
+  // Deliberately NOT a pipeline-global `environment {}` block: Declarative
+  // Pipeline resolves `credentials(...)` bindings before `agent` even
+  // allocates a node, so if this were global, a single missing Jenkins
+  // credential (e.g. Vercel not wired up yet) would fail the build
+  // before Install/Lint/Test ever ran — confirmed by hitting exactly
+  // that while first standing this pipeline up. Each credential is
+  // scoped to only the stage that actually needs it instead, so
+  // Install/Lint/Test/Build all run on a repo with zero Jenkins
+  // credentials configured; only Publish/Deploy require them.
   stages {
     stage('Install') {
       steps {
@@ -74,6 +75,9 @@ pipeline {
     }
 
     stage('SonarQube Quality Gate') {
+      environment {
+        SONAR_TOKEN = credentials('avian-dev-sonar-token')
+      }
       steps {
         withSonarQubeEnv('avian-dev-sonarqube') {
           sh 'npx sonar-scanner -Dsonar.login=$SONAR_TOKEN'
@@ -101,6 +105,11 @@ pipeline {
       when {
         anyOf { branch 'develop'; branch 'staging' }
       }
+      environment {
+        VERCEL_TOKEN = credentials('avian-dev-vercel-token')
+        VERCEL_ORG_ID = credentials('avian-dev-vercel-org-id')
+        VERCEL_PROJECT_ID = credentials('avian-dev-vercel-project-id')
+      }
       steps {
         script {
           def env = (env.BRANCH_NAME == 'develop') ? 'dev' : 'preprod'
@@ -125,6 +134,11 @@ pipeline {
 
     stage('Deploy: Storybook (prod)') {
       when { branch 'main' }
+      environment {
+        VERCEL_TOKEN = credentials('avian-dev-vercel-token')
+        VERCEL_ORG_ID = credentials('avian-dev-vercel-org-id')
+        VERCEL_PROJECT_ID = credentials('avian-dev-vercel-project-id')
+      }
       steps {
         sh '''
           npx vercel deploy storybook-static \
@@ -137,6 +151,9 @@ pipeline {
 
     stage('Publish: npm') {
       when { branch 'main' }
+      environment {
+        NPM_TOKEN = credentials('avian-dev-npm-token')
+      }
       steps {
         sh 'echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > .npmrc'
         // No-ops if there's nothing in .changeset/ pending — Changesets
