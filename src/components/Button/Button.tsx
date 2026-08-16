@@ -59,11 +59,23 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     },
     ref,
   ) => {
-    if (import.meta.env?.DEV && !children && !rest['aria-label']) {
+    // A string/number `children` is real accessible text. Anything else
+    // (an icon element, `undefined`, an array of nodes) isn't reliably
+    // one — most icon-only buttons pass a bare `<Icon />` as children,
+    // which is truthy but contributes no accessible name. This is a
+    // heuristic, not a full accessible-name computation: `children`
+    // that happens to contain real text nested inside an element (e.g.
+    // `<span>Save</span>`) still trips it. False positives here are
+    // cheap (an extra console warning); a silently missing accessible
+    // name is not.
+    const hasTextChildren =
+      typeof children === 'string' || typeof children === 'number';
+    if (import.meta.env?.DEV && !hasTextChildren && !rest['aria-label']) {
       console.warn(
         '[@avian-dev/design-system] Button rendered with no visible text ' +
           'and no aria-label. Every button needs an accessible name — ' +
-          'pass children or aria-label (e.g. an icon-only close button).',
+          'pass text children or aria-label (e.g. an icon-only close ' +
+          'button: <Button aria-label="Close"><CloseIcon /></Button>).',
       );
     }
 

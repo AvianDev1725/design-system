@@ -8,6 +8,8 @@
 export * from './tokens';
 
 export * from './components/Button';
+export * from './components/Heading';
+export * from './components/Text';
 
 // Raw CSS custom properties. Not re-exported through JS — consumers
 // import the stylesheet directly once, at their app root:

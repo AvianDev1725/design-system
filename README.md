@@ -18,8 +18,9 @@ gets a changeset, gets published, and every consumer bumps to it.
 
 ```bash
 npm install
-npm run storybook      # component dev environment — http://localhost:6006
-npm test                # vitest, watch mode: npm run test:watch
+npm run storybook       # component dev environment — http://localhost:6006
+npm test                 # fast unit tests (jsdom), watch mode: npm run test:watch
+npm run test:storybook  # every story, in a real browser via Playwright — see "Accessibility approach"
 npm run build            # produces dist/ (what gets published)
 ```
 
@@ -55,6 +56,41 @@ Two separate stylesheets, imported once, on purpose:
 consuming app supplies its own copy so there's only ever one React
 instance (a second copy breaks hooks with a cryptic error).
 
+## Typography
+
+`fontFamily.sans` (in `src/tokens/typography.ts`) names **Inter** as
+the brand typeface, with the system font stack as the real fallback —
+not decoration, what actually renders before the webfont loads and
+forever if it doesn't. `Heading` and `Text` (in `src/components/`) are
+the two primitives that read the full type scale (`fontSize`,
+`fontWeight`, `lineHeight`) so nothing hand-codes a `font-size`:
+
+```tsx
+import { Heading, Text } from '@avian-dev/design-system';
+
+<Heading level={1}>Page title</Heading>
+<Text color="secondary">Supporting copy.</Text>
+```
+
+`Heading`'s `level` is required with no default — it forces a
+conscious choice about the document outline instead of silently
+defaulting to `<h2>`. `size` is a **separate** prop: a heading can be
+semantically correct (`level={2}`) and visually smaller than its
+children's `level={3}`s without lying about the outline to get there.
+
+**This package does not ship the font file.** Only the name. Loading
+strategy is deliberately left to the consumer, because the right
+answer differs by context:
+
+- The 8 consuming apps are Next.js — load Inter via `next/font/google`
+  (or `next/font/local` for a fully self-hosted copy). Next
+  self-hosts, preloads, and sets `font-display` automatically; that
+  beats this package shipping font files into every consumer's bundle.
+- This repo's own Storybook isn't a Next.js app, so it self-hosts via
+  `@fontsource-variable/inter` directly — see `.storybook/preview.tsx`.
+  That import is local to Storybook's dev experience; it's a
+  devDependency, not part of what gets published.
+
 ## Repo layout
 
 ```
@@ -67,14 +103,18 @@ src/
       Button.stories.tsx   Storybook stories, tagged 'autodocs'
       Button.test.tsx      keyboard nav + axe-core a11y assertions
       index.ts
+    Heading/                <h1>-<h6> primitive — level and visual size are separate props
+    Text/                    body-copy primitive — polymorphic `as`, size/weight/color tokens
   index.ts            the package's public API — nothing else is exported
-  test/setup.ts        vitest + testing-library wiring
+  test/setup.ts        vitest + testing-library wiring (the 'unit' project only)
 .storybook/
   main.ts, preview.tsx, manager.ts, theme.ts, manager-head.html
+  globals.css          Storybook-canvas-only base styles (never published)
   public/              favicon-placeholder.svg (swap for the real one)
-vite.config.ts          library build (npm run build) + vitest config
+vite.config.ts          library build (npm run build) + two vitest projects:
+                         'unit' (jsdom) and 'storybook' (real Chromium via Playwright)
 eslint.config.js         template lint config for the other 9 repos
-Jenkinsfile              lint -> test -> Sonar gate -> build -> deploy
+Jenkinsfile              lint -> test -> a11y (Playwright) -> Sonar gate -> build -> deploy
 vercel.json              Storybook static deploy config
 sonar-project.properties
 .changeset/               versioning — see "Versioning" below
@@ -82,24 +122,42 @@ sonar-project.properties
 
 ## Accessibility approach
 
-Two layers, deliberately not the same tool at both:
+Two layers, deliberately not the same tool at both — each catches what
+the other structurally can't:
 
-1. **`npm test`** (Vitest + Testing Library + `axe-core` directly) —
-   fast, jsdom-based, runs in the "Test" pipeline stage on every PR.
-   Catches structural issues: missing accessible names, wrong roles,
-   keyboard-reachability. **Does not** reliably catch color-contrast
-   violations — jsdom has no real `<canvas>`, which `axe-core`'s
-   contrast check depends on (see the console warning when you run
-   tests; this is a known jsdom limitation, not a bug here).
-2. **Storybook's `@storybook/addon-a11y`** — runs `axe-core` in a real
-   browser against the rendered story, so it _does_ catch contrast
-   issues, and gives visual, per-story feedback in the addon panel.
-   Currently set to `test: 'todo'` (surfaces violations, doesn't fail
-   CI) in `.storybook/preview.tsx` — flip to `'error'` once the initial
-   component set is past the sketch phase.
+1. **`npm test`** (Vitest's `'unit'` project: Testing Library +
+   `axe-core` directly, jsdom) — fast, runs in the "Test" pipeline
+   stage on every PR. Catches structural issues: missing accessible
+   names, wrong roles, keyboard-reachability. **Does not** reliably
+   catch color-contrast violations — jsdom has no real `<canvas>`,
+   which `axe-core`'s contrast check depends on (see the console
+   warning when you run tests; this is a known jsdom limitation, not a
+   bug here).
+2. **`npm run test:storybook`** (Vitest's `'storybook'` project:
+   `@storybook/addon-vitest` + `@storybook/addon-a11y`, running in real
+   headless Chromium via Playwright) — turns every story into a test
+   and runs `axe-core` against the actual rendered, actual-browser DOM.
+   This is what catches contrast and the other checks jsdom can't.
+   Wired into the Jenkins pipeline as its own stage (needs
+   `npx playwright install chromium` first — see the Jenkinsfile).
+
+Both are real, not aspirational — confirmed by writing a genuinely
+broken story (`Button.stories.tsx`'s `IconOnlyMissingLabel`, an
+icon-only button with no accessible name) and watching
+`test:storybook` fail on it with axe's actual `button-name` violation
+before excluding it from the automated run via `tags: ['!test']` (it
+still renders in interactive Storybook, so the a11y addon panel has a
+real violation to show).
+
+**Two different `a11y.test` modes, same `preview.tsx`, on purpose**
+(see the comment there): browsing Storybook interactively stays
+`'todo'` (never punishes you mid-sketch), but running under Vitest
+(`import.meta.env.VITEST`) flips to `'error'` — that's what makes
+`test:storybook` an actual pass/fail gate instead of just a report.
 
 Every new component should ship with both: a `*.test.tsx` axe
-assertion and stories the a11y addon can check in Storybook.
+assertion (fast feedback) and stories that pass under
+`test:storybook` (the real-browser check that actually gates CI).
 
 ## Versioning: Changesets
 
@@ -120,6 +178,34 @@ Graduate to `1.0.0` once the design system has a stable-enough surface
 that consumers can trust semver's normal breaking-change contract —
 a reasonable trigger is "3+ consuming repos depend on this in a
 deployed project," not a fixed date.
+
+## Deploying Storybook to Vercel
+
+One-time setup (not repeatable from a script — needs your Vercel
+login):
+
+```bash
+npx vercel login
+npx vercel link          # connects this repo to a Vercel project
+```
+
+After that, two scripts — `develop` builds+deploys a **preview**
+(Vercel's non-production deploy target; use this for the `develop` and
+`staging` branches), `prod` promotes to the **production** URL (the
+`main` branch, after the Jenkins approval gate):
+
+```bash
+npm run deploy:storybook:dev   # preview deploy
+npm run deploy:storybook:prod  # production deploy
+```
+
+Both need `VERCEL_TOKEN` in the environment (a personal token from
+Vercel's account settings — `npx vercel login` won't set this for you,
+it's separate from the CLI session token). The Jenkins pipeline runs
+the equivalent `vercel deploy` commands itself, branch-gated — these
+npm scripts are for a manual/local deploy without going through
+Jenkins. See the Jenkinsfile's header comment for why branch→env
+mapping is CLI-driven from CI rather than Vercel's own git integration.
 
 ## Decisions made (and why) — revisit before scaling to project 2
 
@@ -148,6 +234,15 @@ get copy-pasted into the other 9 repos:
   safer default given some of the 9 consuming repos' tooling is
   unknown yet. Revisit to ESM-only once every consumer is confirmed on
   a modern bundler.
+- **Inter, self-hosted only for Storybook, named-only for consumers** —
+  see "Typography" above. This package intentionally never ships font
+  files.
+- **`npm audit` reports vulnerabilities only in `vercel` CLI's own
+  transitive deps** (`npm audit --omit=dev` — what actually matters for
+  published-package consumers — reports zero). Normal for a large CLI
+  tool pulled in as a devDependency; not chased further because nothing
+  in that tree ships to npm (`files: ["dist"]`). Worth an occasional
+  `npm audit` re-check, not a blocker.
 
 ## Decisions still open — needed before project 2
 

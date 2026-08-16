@@ -1,0 +1,32 @@
+.heading {
+  margin: 0;
+  font-family: var(--ads-font-family-sans);
+  font-weight: var(--ads-font-weight-semibold);
+  line-height: var(--ads-line-height-tight);
+  color: var(--ads-color-text-primary);
+}
+
+/* Prefixed (not bare `.2xl`/`.3xl`) — CSS class selectors can't start
+   with a digit; keeping every size class the same shape avoids one
+   token needing special-case handling. */
+.text-xs {
+  font-size: var(--ads-font-size-xs);
+}
+.text-sm {
+  font-size: var(--ads-font-size-sm);
+}
+.text-md {
+  font-size: var(--ads-font-size-md);
+}
+.text-lg {
+  font-size: var(--ads-font-size-lg);
+}
+.text-xl {
+  font-size: var(--ads-font-size-xl);
+}
+.text-2xl {
+  font-size: var(--ads-font-size-2xl);
+}
+.text-3xl {
+  font-size: var(--ads-font-size-3xl);
+}

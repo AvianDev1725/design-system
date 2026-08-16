@@ -1,14 +1,31 @@
 /**
  * Typography tokens.
  *
- * `fontFamily.sans` defaults to the system font stack so every consuming
- * project renders correctly with zero setup and no font-loading
- * flash/CLS — a deliberate SEO/perf-friendly default. When the Avian Dev
- * brand typeface is chosen, add it as the first entry in the stack; the
- * system fallback keeps working if the webfont fails to load.
+ * `fontFamily.sans` names **Inter** as the brand typeface (a well-tested
+ * default: free, variable-weight, wide language coverage — swap it here
+ * if a different typeface gets chosen later; every component reads this
+ * token, never a literal font name). The system stack after it is a
+ * real fallback, not decoration — it's what renders during the brief
+ * window before the webfont loads, and what renders forever if it
+ * doesn't.
+ *
+ * This package intentionally does NOT ship font files or a `@font-face`
+ * rule — only the name. Loading strategy is left to each consumer
+ * because it differs by context and the "best" choice is app-specific:
+ *   - The 8 consuming apps are Next.js — use `next/font/google` (or
+ *     `next/font/local` for a self-hosted copy), which self-hosts,
+ *     preloads, and sets `font-display` automatically. That's a better
+ *     result than this package could give by shipping font files
+ *     directly into every consumer's bundle.
+ *   - This repo's own Storybook is not a Next.js app, so it loads the
+ *     font itself via `@fontsource-variable/inter` — see
+ *     .storybook/preview.tsx. That's local to Storybook's dev
+ *     experience, not part of the published package.
  */
 export const fontFamily = {
   sans: [
+    'InterVariable',
+    'Inter',
     '-apple-system',
     'BlinkMacSystemFont',
     '"Segoe UI"',

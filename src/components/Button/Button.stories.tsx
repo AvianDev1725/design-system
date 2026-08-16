@@ -106,17 +106,40 @@ export const Sizes: Story = {
 };
 
 /**
- * Fails the a11y addon on purpose: an icon-only button with no
- * accessible name. Kept as a story so the a11y panel's "Violations" tab
- * has a real example to show, and so CI (`test: 'error'`, see
- * .storybook/preview.tsx) has a case worth catching before this ships
- * as `test: 'error'` project-wide.
+ * Fails the a11y addon on purpose: an icon-only button (an SVG child,
+ * no text) with no `aria-label`. A literal `✕` character would NOT
+ * demonstrate this — text content, even a single glyph, already counts
+ * as an accessible name — so this uses a real icon element instead,
+ * the shape a real icon-only button actually takes.
+ *
+ * `tags: ['!test']` excludes this from the automated `npm run
+ * test:storybook` run (see vite.config.ts's 'storybook' project) —
+ * without it, this story's `a11y.test: 'error'` override would fail
+ * CI *forever*, on purpose, which defeats the point of CI. It still
+ * renders in Storybook itself, where the a11y addon panel shows the
+ * violation live — that's what this story is for.
  */
 export const IconOnlyMissingLabel: Story = {
+  tags: ['!test'],
   args: {
     variant: 'secondary',
     'aria-label': undefined,
-    children: '✕',
+    children: (
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 16 16"
+        fill="none"
+        aria-hidden="true"
+      >
+        <path
+          d="M4 4l8 8m0-8l-8 8"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        />
+      </svg>
+    ),
   },
   parameters: {
     a11y: {

@@ -1,0 +1,12 @@
+/*
+ * Storybook-canvas-only base styles. Lives in .storybook/ — never part
+ * of the published package — because a component *library* shouldn't
+ * impose body-level styles on a consuming app; only Storybook's own
+ * preview iframe needs a realistic canvas to render stories against.
+ */
+body {
+  margin: 0;
+  font-family: var(--ads-font-family-sans);
+  color: var(--ads-color-text-primary);
+  background-color: var(--ads-color-surface-default);
+}

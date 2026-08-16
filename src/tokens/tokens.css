@@ -67,10 +67,12 @@
   --ads-radius-lg: 12px;
   --ads-radius-full: 9999px;
 
-  /* Typography */
+  /* Typography — Inter is the brand typeface (see typography.ts for
+     why this package doesn't ship the font file itself, only the name);
+     everything after it is the real fallback stack. */
   --ads-font-family-sans:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
-    Arial, sans-serif;
+    InterVariable, Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
   --ads-font-family-mono:
     ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
 

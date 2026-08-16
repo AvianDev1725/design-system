@@ -17,8 +17,17 @@ import { viteStaticCopy } from 'vite-plugin-static-copy';
 // tokens.css copy, lib-mode output) out of Storybook's build, which
 // doesn't need any of them and was otherwise redoing that work on every
 // `storybook build`.
-const isLibraryBuild = process.env.npm_lifecycle_event === 'build';
+import path from 'node:path';
+import { storybookTest } from '@storybook/addon-vitest/vitest-plugin';
+import { playwright } from '@vitest/browser-playwright';
+const dirname =
+  typeof __dirname !== 'undefined'
+    ? __dirname
+    : path.dirname(fileURLToPath(import.meta.url));
 
+// More info at: https://storybook.js.org/docs/next/writing-tests/integrations/vitest-addon
+
+const isLibraryBuild = process.env.npm_lifecycle_event === 'build';
 export default defineConfig({
   plugins: [
     react(),
@@ -52,7 +61,9 @@ export default defineConfig({
             // structure (dist/src/tokens/tokens.css) instead of
             // flattening to dist root — `stripBase` is what actually
             // flattens it.
-            rename: { stripBase: true },
+            rename: {
+              stripBase: true,
+            },
           },
         ],
       }),
@@ -88,10 +99,6 @@ export default defineConfig({
     chunkSizeWarningLimit: isLibraryBuild ? 100 : 500,
   },
   test: {
-    environment: 'jsdom',
-    setupFiles: ['./src/test/setup.ts'],
-    css: true,
-    exclude: ['node_modules/**', 'dist/**', '.storybook/**'],
     coverage: {
       provider: 'v8',
       // 'lcov' is what the Jenkins pipeline's SonarQube stage reads
@@ -100,5 +107,46 @@ export default defineConfig({
       include: ['src/**/*.{ts,tsx}'],
       exclude: ['src/**/*.stories.tsx', 'src/**/*.test.tsx', 'src/test/**'],
     },
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: 'unit',
+          environment: 'jsdom',
+          setupFiles: ['./src/test/setup.ts'],
+          css: true,
+          exclude: ['node_modules/**', 'dist/**', '.storybook/**'],
+        },
+      },
+      {
+        extends: true,
+        plugins: [
+          // Turns every story into a Vitest test, run in a real
+          // (headless Chromium, via Playwright) browser — this is what
+          // catches the color-contrast violations jsdom's 'unit'
+          // project structurally can't (see README, "Accessibility
+          // approach"). @storybook/addon-a11y automatically runs axe
+          // against each story here too, respecting the `a11y.test`
+          // mode set in preview.tsx.
+          // https://storybook.js.org/docs/next/writing-tests/integrations/vitest-addon#storybooktest
+          storybookTest({
+            configDir: path.join(dirname, '.storybook'),
+          }),
+        ],
+        test: {
+          name: 'storybook',
+          browser: {
+            enabled: true,
+            headless: true,
+            provider: playwright({}),
+            instances: [
+              {
+                browser: 'chromium',
+              },
+            ],
+          },
+        },
+      },
+    ],
   },
 });

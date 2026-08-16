@@ -62,6 +62,17 @@ pipeline {
       }
     }
 
+    stage('Test: Accessibility (Playwright)') {
+      steps {
+        // Real-browser pass: catches color-contrast and other a11y
+        // violations the jsdom-based 'Test' stage structurally can't
+        // (see README, "Accessibility approach"). Needs actual browser
+        // binaries, unlike the stage above.
+        sh 'npx playwright install --with-deps chromium'
+        sh 'npm run test:storybook'
+      }
+    }
+
     stage('SonarQube Quality Gate') {
       steps {
         withSonarQubeEnv('avian-dev-sonarqube') {

@@ -5,11 +5,11 @@ const config: StorybookConfig = {
   addons: [
     // Flags WCAG violations live in the story canvas via axe-core —
     // this is the a11y requirement from the project brief.
-    '@storybook/addon-a11y',
-    // Auto-generates the "Docs" tab (props table, description comments)
+    '@storybook/addon-a11y', // Auto-generates the "Docs" tab (props table, description comments)
     // from each component's TS types — this is where "documented in
     // Storybook" comes from without hand-written prop tables.
     '@storybook/addon-docs',
+    '@storybook/addon-vitest',
   ],
   framework: {
     name: '@storybook/react-vite',
