@@ -27,6 +27,11 @@ export default tseslint.config(
       'coverage',
       'node_modules',
       '.changeset',
+      // Vercel's local build output (`vercel build`) — gitignored
+      // already, but ESLint's flat config doesn't read .gitignore on
+      // its own; found by hitting exactly that, 21k+ errors from a
+      // minified file in here getting linted as source.
+      '.vercel',
     ],
   },
   js.configs.recommended,
@@ -34,7 +39,14 @@ export default tseslint.config(
   {
     files: ['**/*.{ts,tsx}'],
     languageOptions: {
-      ecmaVersion: 2023,
+      // 'latest', not a pinned year: always parses whatever newest
+      // ECMAScript syntax this ESLint/parser version knows, rather
+      // than needing a manual bump every spec edition — the practical
+      // way to actually stay on "latest ES guidelines" (there's no
+      // year-numbered 'ecmaVersion: 2026' to pin to; TC39 tooling
+      // support trails the spec, same reasoning as the tsconfig files'
+      // "esnext" target).
+      ecmaVersion: 'latest',
       globals: globals.browser,
     },
     plugins: {

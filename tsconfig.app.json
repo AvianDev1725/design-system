@@ -1,8 +1,14 @@
 {
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
-    "target": "es2023",
-    "lib": ["ES2023", "DOM"],
+    // "esnext" rather than a pinned year: TypeScript's lib set for
+    // ES2026 doesn't exist yet (the spec itself isn't finalized as of
+    // this writing — TS's lib files trail the actual ECMA-262 edition
+    // by a release or two). "esnext" is TS's rolling latest-known
+    // bucket, which is the real intent behind "target the newest ES
+    // guidelines" until an "ES2026" lib exists to pin to instead.
+    "target": "esnext",
+    "lib": ["ESNext", "DOM"],
     "module": "esnext",
     "types": ["vite/client"],
     "allowArbitraryExtensions": true,

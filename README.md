@@ -111,15 +111,14 @@ src/
   main.ts, preview.tsx, manager.ts, theme.ts, manager-head.html
   globals.css          Storybook-canvas-only base styles (never published)
   public/              favicon-placeholder.svg (swap for the real one)
+middleware.ts            Basic Auth gate for the deployed Storybook — dev/staging only,
+                          see "Deploying Storybook to Vercel"
 vite.config.ts          library build (npm run build) + two vitest projects:
                          'unit' (jsdom) and 'storybook' (real Chromium via Playwright)
 eslint.config.js         template lint config for the other 9 repos
-Jenkinsfile              validation only: lint -> test -> a11y (Playwright) -> Sonar gate -> build
 .github/workflows/
-  deploy.yml              deployment + npm publish (see "Deploying" below) — deliberately
-                           separate from the Jenkinsfile, not duplicated into it
+  lint.yml                lint + format + typecheck on every push — see "CI"
 vercel.json              Storybook static deploy config
-sonar-project.properties
 .changeset/               versioning — see "Versioning" below
 ```
 
@@ -129,24 +128,26 @@ Two layers, deliberately not the same tool at both — each catches what
 the other structurally can't:
 
 1. **`npm test`** (Vitest's `'unit'` project: Testing Library +
-   `axe-core` directly, jsdom) — fast, runs in the "Test" pipeline
-   stage on every PR. Catches structural issues: missing accessible
-   names, wrong roles, keyboard-reachability. **Does not** reliably
-   catch color-contrast violations — jsdom has no real `<canvas>`,
-   which `axe-core`'s contrast check depends on (see the console
-   warning when you run tests; this is a known jsdom limitation, not a
-   bug here).
+   `axe-core` directly, jsdom) — fast. Catches structural issues:
+   missing accessible names, wrong roles, keyboard-reachability.
+   **Does not** reliably catch color-contrast violations — jsdom has
+   no real `<canvas>`, which `axe-core`'s contrast check depends on
+   (see the console warning when you run tests; this is a known jsdom
+   limitation, not a bug here).
 2. **`npm run test:storybook`** (Vitest's `'storybook'` project:
    `@storybook/addon-vitest` + `@storybook/addon-a11y`, running in real
    headless Chromium via Playwright) — turns every story into a test
    and runs `axe-core` against the actual rendered, actual-browser DOM.
    This is what catches contrast and the other checks jsdom can't.
-   Wired into the Jenkins pipeline as its own stage (needs
-   `npx playwright install chromium` first — see the Jenkinsfile).
 
-Both are real, not aspirational — confirmed by writing a genuinely
-broken story (`Button.stories.tsx`'s `IconOnlyMissingLabel`, an
-icon-only button with no accessible name) and watching
+**Neither is wired into CI right now** (`.github/workflows/lint.yml`
+only runs lint/format/typecheck — see "CI" below) — both are real,
+verified-working local commands, but running them on every push is a
+follow-up, not done here.
+
+Both are real, not aspirational, regardless — confirmed by writing a
+genuinely broken story (`Button.stories.tsx`'s `IconOnlyMissingLabel`,
+an icon-only button with no accessible name) and watching
 `test:storybook` fail on it with axe's actual `button-name` violation
 before excluding it from the automated run via `tags: ['!test']` (it
 still renders in interactive Storybook, so the a11y addon panel has a
@@ -160,7 +161,27 @@ real violation to show).
 
 Every new component should ship with both: a `*.test.tsx` axe
 assertion (fast feedback) and stories that pass under
-`test:storybook` (the real-browser check that actually gates CI).
+`test:storybook` (the real-browser check).
+
+## CI
+
+`.github/workflows/lint.yml` — lint, format check, typecheck, on every
+push to every branch. That's the whole job, deliberately minimal:
+deployment isn't gated by it (Vercel deploys independently on push,
+see below), and it doesn't run the test suites either. If you want
+`npm test` / `npm run test:storybook` / a build check enforced on every
+push too, that's a small addition to the same workflow file, not done
+here.
+
+`eslint.config.js` parses with `ecmaVersion: 'latest'` rather than a
+pinned year — there's no ES2026 to pin to yet (the spec itself trails
+what tooling ships), so `'latest'` is the actual mechanism for staying
+on the newest ECMAScript syntax ESLint's parser understands. Same
+reasoning behind `"target": "esnext"` in the three tsconfig files
+(`tsconfig.app.json`, `tsconfig.node.json`, `tsconfig.middleware.json`)
+— TypeScript's lib set only goes up to ES2024 as of the version this
+repo pins (`~5.9.3`); `"esnext"` is TS's rolling latest-known bucket
+until an `"ES2026"` lib exists to target explicitly instead.
 
 ## Versioning: Changesets
 
@@ -169,11 +190,13 @@ npm run changeset          # describe your change, pick a bump type
 git add .changeset/*.md    # commit it with your PR
 ```
 
-On push to `main`, `.github/workflows/deploy.yml`'s `deploy-production`
-job runs `changeset publish` (after the `production` Environment
-approval — see "Deploying Storybook to Vercel"), which consumes
-pending changesets into a version bump + `CHANGELOG.md` entry and
-pushes to npm.
+**Publishing to npm is a manual local step right now**:
+`npm run release` (`npm run build && changeset publish`), which
+consumes pending changesets into a version bump + `CHANGELOG.md` entry
+and pushes to npm using whatever npm auth your local machine already
+has (`npm login`, or an `NPM_TOKEN` in your shell env — same as
+`npm publish` normally needs). This isn't automated in CI on purpose
+for now — nothing pushes to npm on your behalf on a `git push`.
 
 **Current phase: `0.x`.** Under semver's `0.x` convention, breaking
 changes bump the _minor_ version, not major (`0.1.0` → `0.2.0` for a
@@ -186,76 +209,80 @@ deployed project," not a fixed date.
 
 ## Deploying Storybook to Vercel
 
-Owned by [.github/workflows/deploy.yml](./.github/workflows/deploy.yml)
-now, triggered on push to `develop` / `staging` / `main` — **not** the
-Jenkinsfile, deliberately (see that file's header comment). Branch →
-environment: `develop` → dev preview, `staging` → preprod preview,
-`main` → production.
+**Vercel's own GitHub integration deploys directly on push** — not a
+custom script, not GitHub Actions. `main` → Production, every other
+branch (including `develop` and `staging`) → a Preview deployment.
+That's Vercel's default behavior once the project is connected to the
+repo; nothing in this repo orchestrates it.
 
-**`main` is gated by a GitHub Environment, not the site itself.** The
-`deploy-production` job requires approval from the `production`
-Environment's reviewers before it runs at all — once approved, the
-deployed Storybook is fully public, same as dev/staging. What's
-access-controlled is _who can trigger a production deploy_, not _who
-can view the result_. One-time setup, can't be scripted (needs repo
-admin access):
+**One-time setup, can't be scripted** (needs your own Vercel/GitHub
+account access):
 
-1. **Settings → Environments → New environment**, name it exactly
-   `production` → **Required reviewers** → add yourself (or whoever
-   should approve prod deploys).
-2. **Settings → Secrets and variables → Actions → New repository
-   secret**: `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`
-   (`VERCEL_ORG_ID`/`VERCEL_PROJECT_ID` come from `.vercel/project.json`
-   after running `npx vercel link` locally, or the Vercel project's
-   Settings page).
-3. Same page, but scoped to the **`production` Environment's own
-   secrets** (Settings → Environments → production → Environment
-   secrets), not repo-level: `NPM_TOKEN`. This one only needs to exist
-   inside an already-approved run — worth the extra isolation since a
-   leaked npm token can publish under your account.
+1. **Connect your GitHub account to Vercel**, if you haven't:
+   vercel.com → Account Settings → **Login Connections** → GitHub.
+   Without this, linking the repo fails with "You need to add a Login
+   Connection to your GitHub account first" — hit exactly that error
+   the first time this was wired up.
+2. **Connect the repo to the Vercel project**: either re-run
+   `npx vercel link` locally once step 1 is done, or from the Vercel
+   dashboard → the `design-system` project → Settings → Git → Connect
+   Git Repository → `AvianDev1725/design-system`.
+3. Confirm **Settings → Git → Production Branch** is set to `main`.
 
-Vercel stays **one project** across all three environments (not three
-separate projects) — dev/staging land as Preview deployments
-(distinguished by branch, carried via a `DEPLOY_ENV` build-time env
-var, not a distinct Vercel project), `main` lands as the Production
-deployment. If you want dev and staging to have genuinely separate,
-independently-configurable settings on Vercel's side (not just
-different branches sharing one config), that needs [Vercel Custom
-Environments](https://vercel.com/docs/deployments/environments#custom-environments) —
-a Pro-plan feature, not set up here.
+### Restricting dev/staging behind a username + password
 
-For a manual/local deploy without pushing through GitHub Actions at
-all: `npm run deploy:storybook:dev` / `npm run deploy:storybook:prod`
-still work, using a `VERCEL_TOKEN` in your own shell environment.
+`middleware.ts` gates every non-production deployment behind HTTP
+Basic Auth — real username/password (not Vercel's own single-shared-
+password Protection feature, which needs a paid plan and doesn't
+distinguish users). It checks Vercel's own `VERCEL_ENV` at request
+time: `'production'` skips the check entirely (main stays fully
+public), anything else (`'preview'` — covers both `develop` and
+`staging`, Vercel doesn't distinguish them further without a paid
+Custom Environments plan) requires `BASIC_AUTH_USER` /
+`BASIC_AUTH_PASS`, read from Vercel Environment Variables scoped to
+**Preview only** (already set on the `avian-dev/design-system` Vercel
+project — Project Settings → Environment Variables → change or
+rotate them there, not in code).
 
-## Seeing the Jenkinsfile actually run
+**Verified working end-to-end**, not just written: a real preview
+deploy 401s with no/wrong credentials and 200s with the right ones; a
+real production deploy skips the check and is fully public. Getting
+here also required disabling Vercel's own default **Deployment
+Protection** (Settings → Deployment Protection → off) — that feature
+gates preview URLs behind a Vercel-account SSO wall _before_ any
+project code runs, which isn't a username/password and would have
+silently pre-empted `middleware.ts` entirely; the two were fighting
+each other until it was turned off project-wide.
 
-`local-jenkins/` is a fully-scripted, disposable Jenkins (Docker image
+One real limitation: since dev and staging are both Vercel's generic
+"Preview" environment (not distinct Vercel Environments), they
+currently share the **same** Basic Auth credentials. Genuinely
+different dev vs. staging credentials would need [Vercel Custom
+Environments](https://vercel.com/docs/deployments/environments#custom-environments)
+(a Pro-plan feature) or a middleware check keyed on the request's
+hostname instead of `VERCEL_ENV` — neither done here.
 
-- Groovy init scripts, no manual setup wizard) — see
-  [local-jenkins/README.md](./local-jenkins/README.md) for how to run
-  it. It validates only now (deploy/publish moved to GitHub Actions,
-  above) — not aspirational, though: `Install` → `Lint` → `Test` →
-  `Test: Accessibility (Playwright)` → `SonarQube Quality Gate` → `Build`
-  were all confirmed running and passing against a real SonarCloud
-  project. It's reusable for the other 9 repos too (parameterized via
-  env vars), not single-purpose.
+### Manual/local deploy, without pushing at all
 
-Two real Jenkinsfile bugs got caught and fixed this way, not just
-theorized: a pipeline-global `environment {}` block was resolving all
-5 credentials before `agent` even allocated a node, so one missing
-credential failed the _entire_ build before Install ever ran (fixed by
-scoping each credential to only the stage that needs it); and
-`playwright install --with-deps` was trying to `apt-get install` as
-root, which the Jenkins agent user doesn't have (fixed — system deps
-belong baked into the CI agent image, not installed per-build).
+```bash
+npm run deploy:storybook:dev   # preview
+npm run deploy:storybook:prod  # production
+```
+
+Both need `VERCEL_TOKEN` in your shell env (a personal token from
+Vercel's account settings). Both use `vercel pull` → `vercel build` →
+`vercel deploy --prebuilt` — deliberately not `vercel deploy
+storybook-static` (a raw static-file upload): that path skips Vercel's
+own build pipeline, which is what actually processes `middleware.ts`
+into the deployment. A raw upload would silently deploy Storybook with
+no Basic Auth at all — found by hitting exactly that.
 
 ## Decisions made (and why) — revisit before scaling to project 2
 
-These were called during scaffolding rather than left as open
-questions, because they had a reasonable default and blocking on them
-would have stalled the whole repo. Reconsider any of them before they
-get copy-pasted into the other 9 repos:
+These were called along the way rather than left as open questions,
+because they had a reasonable default and blocking on them would have
+stalled the work. Reconsider any of them before they get copy-pasted
+into the other 9 repos:
 
 - **TypeScript pinned to `~5.9.3`, not `6.0.x`.** TS 6.0 (very recently
   released) broke `@microsoft/api-extractor`'s declaration-bundling —
@@ -271,8 +298,10 @@ get copy-pasted into the other 9 repos:
   `expect(violations).toEqual([])` instead. The available wrapper
   packages pin to specific Vitest major-version type internals and
   broke against Vitest 4 during setup; one plain assertion sidesteps
-  that entire class of breakage. Worth remembering before reaching for
-  a similar wrapper package in the other 9 repos.
+  that entire class of breakage.
+- **ESLint pinned to `^9.x`, not `10.x`.** `eslint-plugin-jsx-a11y` —
+  load-bearing for this repo's whole purpose — doesn't support ESLint
+  10 yet (peer range caps at `^9`). Revisit once it does.
 - **ESM + CJS dual output**, not ESM-only, for the published package —
   safer default given some of the 9 consuming repos' tooling is
   unknown yet. Revisit to ESM-only once every consumer is confirmed on
@@ -280,31 +309,16 @@ get copy-pasted into the other 9 repos:
 - **Inter, self-hosted only for Storybook, named-only for consumers** —
   see "Typography" above. This package intentionally never ships font
   files.
-- **`npm audit` reports vulnerabilities only in `vercel` CLI's own
-  transitive deps** (`npm audit --omit=dev` — what actually matters for
-  published-package consumers — reports zero). Normal for a large CLI
-  tool pulled in as a devDependency; not chased further because nothing
-  in that tree ships to npm (`files: ["dist"]`). Worth an occasional
-  `npm audit` re-check, not a blocker.
-
-## Decisions resolved since scaffolding
-
-- **GitHub org**: `AvianDev1725` — `package.json`, `.storybook/theme.ts`,
-  the Jenkins seed job, and this README's links all use the real org
-  now, no more `github.com/avian-dev` placeholders. The **npm scope**
-  (`@avian-dev/design-system`) stays as-is — it's an independent
-  namespace from the GitHub org, doesn't need to match.
-- **SonarCloud** is real and wired: org `aviandev1725`, project
-  `AvianDev1725_design-system`, Automatic Analysis disabled in favor of
-  Jenkins-driven CI analysis (had to be turned off manually in
-  SonarCloud's UI — Administration → Analysis Method — the two modes
-  actively conflict).
-- **Vercel** is real and wired: one project (`avian-dev/design-system`),
-  deploys owned by `.github/workflows/deploy.yml` — see "Deploying
-  Storybook to Vercel" above for the exact GitHub Environment +
-  secrets setup.
-- **npm publish** goes through the same GitHub Actions workflow,
-  `NPM_TOKEN` scoped to the `production` Environment specifically.
+- **No CI/CD platform beyond GitHub Actions + Vercel's native
+  integration.** Earlier iterations of this repo wired up Jenkins (a
+  local disposable Docker instance) and SonarCloud; both were removed
+  in favor of this simpler shape — Vercel deploys directly on push,
+  GitHub Actions only lints. If SonarQube/SonarCloud static analysis
+  or a heavier CI/CD platform is wanted later, that's a clean addition
+  to `.github/workflows/`, not a reason to reach for Jenkins again.
+- **npm publish is manual**, not automated on push to `main` — see
+  "Versioning" above. A deliberate simplification, not an oversight;
+  automate it in `lint.yml` (or a new workflow) if that's wanted.
 
 ## Decisions still open
 
@@ -316,11 +330,9 @@ get copy-pasted into the other 9 repos:
   `.storybook/public/`, `src/tokens/color.ts`'s placeholder blue ramp)
   but using placeholder values — see the `TODO(brand)` comments in
   those files for exactly what to swap and where.
-- **Vercel Custom Environments** (a Pro-plan feature) would let
-  dev/staging have genuinely separate, independently-configurable
-  Vercel settings instead of sharing one project distinguished only by
-  branch — not set up here (see "Deploying Storybook to Vercel"),
-  worth it if dev/staging need to diverge beyond a build-time env var.
+- **Dev vs. staging share one Basic Auth credential pair** — see
+  "Deploying Storybook to Vercel" for what genuinely separating them
+  would need.
 - **A component that intentionally fails a11y** (`IconOnlyMissingLabel`
   in `Button.stories.tsx`) is kept as a permanent story to give the a11y
   addon panel something real to demonstrate. Decide if that convention

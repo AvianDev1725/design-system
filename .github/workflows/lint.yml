@@ -1,0 +1,34 @@
+name: Lint
+
+# Deployment isn't handled here — Vercel's own GitHub integration
+# deploys directly on push (see README, "Deploying Storybook to
+# Vercel"): main -> production automatically, every other branch ->
+# a Preview deployment. This workflow's only job is to fail loudly on
+# a push with lint errors; it doesn't gate or block that deploy.
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+concurrency:
+  group: lint-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+      - run: npm ci
+      # eslint.config.js parses with `ecmaVersion: 'latest'` — always
+      # the newest ECMAScript syntax this ESLint version understands,
+      # which is the actual mechanism behind "lint against the latest
+      # ES guidelines" (there's no ES2026 to pin a version number to
+      # yet — see that file's comment).
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run typecheck

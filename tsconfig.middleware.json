@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.middleware.tsbuildinfo",
+    // "esnext": see tsconfig.app.json's comment on the same setting —
+    // there's no "ES2026" TS lib to target yet. This only affects
+    // type-checking (noEmit below) — Vercel's own build step, not tsc,
+    // decides what syntax level actually ships to the Edge Runtime.
+    "target": "esnext",
+    // Edge Middleware runs in a V8 isolate with Web-standard globals
+    // (Request/Response/fetch/btoa), not Node.js — a genuinely
+    // different runtime from tsconfig.node.json's build-tooling
+    // scripts, which is why this is its own project instead of adding
+    // "DOM" to that one.
+    "lib": ["ESNext", "DOM"],
+    "types": [],
+    "skipLibCheck": true,
+
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "moduleDetection": "force",
+    "noEmit": true,
+
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "erasableSyntaxOnly": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["middleware.ts"]
+}
