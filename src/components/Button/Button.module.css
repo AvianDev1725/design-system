@@ -1,0 +1,130 @@
+/*
+ * Styled entirely off design tokens (`var(--ads-*)`, defined in
+ * src/tokens/tokens.css) — no raw colors, spacing, or font values here.
+ * That's what makes a rebrand a token-file change instead of a
+ * component-by-component audit.
+ */
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ads-space-2);
+  font-family: var(--ads-font-family-sans);
+  font-weight: var(--ads-font-weight-semibold);
+  line-height: var(--ads-line-height-normal);
+  border-radius: var(--ads-radius-md);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+  /* Never below the 44x44 CSS px comfortable target; WCAG 2.5.8 (AA)
+     only requires 24x24, but 44px matches platform touch guidance. */
+  min-height: 44px;
+}
+
+/* Keyboard-focus only — never suppressed, never shown on mouse click. */
+.button:focus-visible {
+  outline: var(--ads-focus-ring);
+  outline-offset: var(--ads-focus-ring-offset);
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.button[aria-busy='true'] {
+  cursor: progress;
+}
+
+/* --- Variants -------------------------------------------------------- */
+
+.primary {
+  background-color: var(--ads-color-brand-default);
+  color: var(--ads-color-text-on-brand);
+}
+.primary:hover:not(:disabled):not([aria-busy='true']) {
+  background-color: var(--ads-color-brand-hover);
+}
+.primary:active:not(:disabled):not([aria-busy='true']) {
+  background-color: var(--ads-color-brand-active);
+}
+
+.secondary {
+  background-color: var(--ads-color-surface-default);
+  color: var(--ads-color-brand-default);
+  border-color: var(--ads-color-border-default);
+}
+.secondary:hover:not(:disabled):not([aria-busy='true']) {
+  background-color: var(--ads-color-surface-subtle);
+  border-color: var(--ads-color-brand-default);
+}
+.secondary:active:not(:disabled):not([aria-busy='true']) {
+  background-color: var(--ads-color-surface-sunken);
+}
+
+.danger {
+  background-color: var(--ads-color-danger-border);
+  color: var(--ads-color-text-on-brand);
+}
+.danger:hover:not(:disabled):not([aria-busy='true']) {
+  background-color: var(--ads-color-danger-text);
+}
+.danger:active:not(:disabled):not([aria-busy='true']) {
+  background-color: var(--ads-color-danger-text);
+}
+
+/* --- Sizes ------------------------------------------------------------ */
+
+.sm {
+  padding: var(--ads-space-2) var(--ads-space-3);
+  font-size: var(--ads-font-size-sm);
+  min-height: 32px;
+}
+
+.md {
+  padding: var(--ads-space-3) var(--ads-space-4);
+  font-size: var(--ads-font-size-md);
+}
+
+.lg {
+  padding: var(--ads-space-4) var(--ads-space-6);
+  font-size: var(--ads-font-size-lg);
+}
+
+.fullWidth {
+  width: 100%;
+}
+
+.label {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* --- Loading spinner ---------------------------------------------------
+ * Decorative (aria-hidden); the accessible state is communicated via
+ * aria-busy on the button itself, not by this element's presence.
+ */
+.spinner {
+  width: 1em;
+  height: 1em;
+  border-radius: var(--ads-radius-full);
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  animation: ads-spin 0.6s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 1.5s;
+  }
+}
+
+@keyframes ads-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

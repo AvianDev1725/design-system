@@ -1,0 +1,98 @@
+/**
+ * CSS custom-property mirror of ./color.ts, ./spacing.ts and
+ * ./typography.ts.
+ *
+ * Components are styled with CSS Modules and reference `var(--ads-*)`
+ * exclusively — never a raw hex/px value — so a rebrand or a
+ * consumer-side theme override is a one-file change.
+ *
+ * NOTE: these values are hand-kept in sync with the TS token files for
+ * now. If the token set grows past this first component, consider
+ * generating both from one source (e.g. Style Dictionary) instead of
+ * maintaining two files by hand — flagged in the README as a follow-up,
+ * not done here to avoid over-building before there's a second
+ * component's worth of real usage to generalize from.
+ */
+
+:root {
+  /* Color — brand */
+  --ads-color-brand-default: #2563eb;
+  --ads-color-brand-hover: #1d4ed8;
+  --ads-color-brand-active: #1e3a8a;
+  --ads-color-brand-subtle: #eff6ff;
+  --ads-color-brand-border: #93c5fd;
+
+  /* Color — text */
+  --ads-color-text-primary: #111827;
+  --ads-color-text-secondary: #4b5563;
+  --ads-color-text-on-brand: #ffffff;
+  --ads-color-text-disabled: #9ca3af;
+  --ads-color-text-danger: #b91c1c;
+
+  /* Color — surface */
+  --ads-color-surface-default: #ffffff;
+  --ads-color-surface-subtle: #f9fafb;
+  --ads-color-surface-sunken: #f3f4f6;
+  --ads-color-surface-inverse: #111827;
+
+  /* Color — border */
+  --ads-color-border-default: #d1d5db;
+  --ads-color-border-strong: #9ca3af;
+  --ads-color-border-focus: #3b82f6;
+
+  /* Color — status */
+  --ads-color-danger-bg: #fee2e2;
+  --ads-color-danger-text: #b91c1c;
+  --ads-color-danger-border: #dc2626;
+  --ads-color-success-bg: #dcfce7;
+  --ads-color-success-text: #15803d;
+  --ads-color-success-border: #16a34a;
+
+  /* Spacing (4px base unit) */
+  --ads-space-1: 4px;
+  --ads-space-2: 8px;
+  --ads-space-3: 12px;
+  --ads-space-4: 16px;
+  --ads-space-5: 20px;
+  --ads-space-6: 24px;
+  --ads-space-8: 32px;
+  --ads-space-10: 40px;
+  --ads-space-12: 48px;
+  --ads-space-16: 64px;
+  --ads-space-20: 80px;
+
+  /* Radius */
+  --ads-radius-sm: 4px;
+  --ads-radius-md: 8px;
+  --ads-radius-lg: 12px;
+  --ads-radius-full: 9999px;
+
+  /* Typography */
+  --ads-font-family-sans:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
+    Arial, sans-serif;
+  --ads-font-family-mono:
+    ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+
+  --ads-font-size-xs: 0.75rem;
+  --ads-font-size-sm: 0.875rem;
+  --ads-font-size-md: 1rem;
+  --ads-font-size-lg: 1.25rem;
+  --ads-font-size-xl: 1.5625rem;
+  --ads-font-size-2xl: 1.953rem;
+  --ads-font-size-3xl: 2.441rem;
+
+  --ads-font-weight-regular: 400;
+  --ads-font-weight-medium: 500;
+  --ads-font-weight-semibold: 600;
+  --ads-font-weight-bold: 700;
+
+  --ads-line-height-tight: 1.2;
+  --ads-line-height-normal: 1.5;
+  --ads-line-height-relaxed: 1.7;
+
+  /* Focus ring — one definition every focusable component reuses so
+     keyboard-focus styling never drifts component to component. */
+  --ads-focus-ring: 2px solid var(--ads-color-border-focus);
+  --ads-focus-ring-offset: 2px;
+}

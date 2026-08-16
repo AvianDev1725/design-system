@@ -1,0 +1,18 @@
+<!--
+  Injected into the Storybook manager (chrome) document's <head>.
+  Overrides the default Storybook favicon with the Avian Dev placeholder
+  in .storybook/public/ (copied verbatim to the built site's root via
+  `staticDirs` in main.ts). Swap the file, not this link, once the real
+  favicon exists.
+-->
+<link rel="icon" href="./favicon-placeholder.svg" type="image/svg+xml" />
+<!--
+  theme.ts's `brandTitle` sets the real browser-tab title once the
+  manager SPA hydrates (Storybook does this in JS, not from static
+  markup — the spec only honors a page's *first* <title>, and
+  Storybook's own default one comes before whatever manager-head.html
+  adds). This second tag is only a fallback for the pre-hydration flash
+  and for anything that reads the static HTML without running its JS
+  (e.g. a link-preview bot on the deployed Vercel URL).
+-->
+<title>Avian Dev — Design System</title>

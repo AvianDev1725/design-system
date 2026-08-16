@@ -1,0 +1,104 @@
+{
+  "name": "@avian-dev/design-system",
+  "version": "0.1.0",
+  "description": "Avian Dev's shared, accessible design system — tokenized, keyboard-navigable React components published to npm and consumed across the Avian Dev project suite.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Avian Dev <aviandev1725@gmail.com>",
+  "keywords": [
+    "react",
+    "design-system",
+    "component-library",
+    "accessibility",
+    "a11y",
+    "storybook",
+    "typescript",
+    "avian-dev"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/avian-dev/design-system.git"
+  },
+  "homepage": "https://github.com/avian-dev/design-system#readme",
+  "bugs": "https://github.com/avian-dev/design-system/issues",
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/design-system.cjs",
+  "module": "./dist/design-system.mjs",
+  "types": "./dist/design-system.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/design-system.d.ts",
+      "import": "./dist/design-system.mjs",
+      "require": "./dist/design-system.cjs"
+    },
+    "./style.css": "./dist/style.css",
+    "./tokens.css": "./dist/tokens.css",
+    "./package.json": "./package.json"
+  },
+  "sideEffects": [
+    "*.css"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "scripts": {
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build",
+    "build": "tsc -b && vite build",
+    "typecheck": "tsc -b",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "npm run build && changeset publish",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^3.0.0",
+    "@eslint/js": "^9.39.5",
+    "@storybook/addon-a11y": "^10.5.8",
+    "@storybook/addon-docs": "^10.5.8",
+    "@storybook/react-vite": "^10.5.8",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.4",
+    "@types/node": "^24.13.3",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.2.0",
+    "@vitest/coverage-v8": "^4.1.10",
+    "axe-core": "^4.13.0",
+    "eslint": "^9.39.5",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.4",
+    "eslint-plugin-storybook": "^10.5.8",
+    "globals": "^17.11.0",
+    "jsdom": "^30.0.1",
+    "prettier": "^3.9.6",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "storybook": "^10.5.8",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.67.0",
+    "vite": "^7.3.6",
+    "vite-plugin-dts": "^4.5.4",
+    "vite-plugin-static-copy": "^4.1.1",
+    "vitest": "^4.1.10"
+  }
+}
